@@ -1,0 +1,138 @@
+﻿<html>
+<head>
+<title>3D</title>
+<link type="text/css" href="../../jquery_Temp_Theme/css/ui-lightness/jquery-ui-1.8.14.custom.css" rel="stylesheet" />	
+<script type="text/javascript" src="../../jquery_Temp_Theme/js/jquery-1.5.1.min.js"></script>
+<script type="text/javascript" src="../../jquery_Temp_Theme/js/jquery-ui-1.8.14.custom.min.js"></script>
+<script type="text/javascript">
+	var frame=false;
+	function addError(text){
+		$('#inf').html(function(i,c){
+			return '<br/><div class="ui-state-error ui-corner-all" style="padding: 0 .7em;">'+
+				'<p><span class="ui-icon ui-icon-alert" style="float: left; margin-right: .3em;"></span>'+
+				'<span>'+text+'</span>'+
+			'</p></div>'+c
+		});
+	}
+	function addInfo(text){
+		$('#inf').html(function(i,c){
+			return '<br/><div class="ui-state-highlight ui-corner-all" style="padding: 0 .7em;">'+
+				'<p><span class="ui-icon ui-icon-info" style="float: left; margin-right: .3em;"></span>'+
+				'<span>'+text+'</span>'+
+			'</p></div>'+c
+		});
+	}
+	function edit_de(text,id){
+		$('#inf div:eq('+id+') p span:eq(1)').html(text);
+	}
+	function clear_de(){
+		$('#inf').empty();
+	}
+	$(function(){
+		load();
+		if (window.addEventListener) { //IE9 - Other
+			window.addEventListener ("mouseup", mouseReleased, true);
+			window.addEventListener ("mousedown", mousePressed, true);
+			window.addEventListener ("mousemove", mouseDragged, true);
+			window.addEventListener ("keydown", keyDown, true);
+		}
+		else {
+			if (button.setCapture) {    // BIE9
+				button.attachEvent ("onlosecapture", OnButtonLoseCapture);
+				button.setCapture ();
+			}
+		}
+		$('svg.view3D').css('background',themes.view3D.windowBackground);
+		// ui - Dialog			
+		$('#dialog').dialog({
+			autoOpen: true,
+			position:['right','top'],
+			dragable:true
+		});
+		$('#dialog').dialog('close');
+		$('#dialog_link').click(function(){
+			$('#dialog').dialog('open');
+			return false;
+		});
+		
+		$('#dialog_link, ul#icons li').hover(
+			function() { $(this).addClass('ui-state-hover'); }, 
+			function() { $(this).removeClass('ui-state-hover'); }
+		);
+		onkeydown=function(e){
+			if(String.fromCharCode(e.keyCode)=='I'&&e.ctrlKey){$('#dialog').parent().toggle();return false;}
+			return true;
+		};
+	});
+	var svg=true; 
+	function styleObject (obj,rule) {
+		var styleTag = document.getElementById("styleObjects");
+		var sheet = styleTag['sheet'] ? styleTag.sheet : styleTag.styleSheet;
+		
+		if (sheet['insertRule']) { //IE9 - Other
+			sheet.insertRule (obj+'{'+rule+'}', 0);
+		}
+		else {  // BIE9
+			if (sheet.addRule) {
+				sheet.addRule (obj, rule, 0);
+			}
+		}
+	}
+	window.onerror=function(msg, url, lineNo){
+		if (window.removeEventListener&&window['mouseReleased']) {   // all browsers except IE before version 9
+			window.removeEventListener ("mouseup", mouseReleased, true);
+			window.removeEventListener ("mousedown", mousePressed, true);
+			window.removeEventListener ("mousemove", mouseDragged, true);
+			window.removeEventListener ("keydown", keyDown, true);
+		}
+		var b=document.getElementById('error');
+		if(b){
+			b.getElementsByTagName('span')[2].innerHTML=msg+" in "+url.split('/')[url.split('/').length-1]+" on line:"+lineNo;
+			b.style.display='block';
+		}
+	};
+</script>
+<style type="text/css">
+	body{ font: 62.5% "Trebuchet MS", sans-serif; margin: 0px;overflow:hidden;}
+</style>
+<style id="styleObjects" >
+</style>
+<script type="text/javascript" language="Javascript">
+function scrolltop(){scroll(0,0);}
+</script>
+<script src="src2/worker_Classes.js" ></script>
+<script src="src2/Static_Prototypes.js" ></script>
+<script src="src2/ArcBallJS2.js" ></script>
+</head>
+<body onresize="load();" >
+		<div style="position:absolute;top:0px;left:0px;" class="ui-state-highlight ui-corner-all" style="padding: 0 .7em;">
+			<p>
+				<span class="ui-icon ui-icon-info" style="float: left; margin-right: .3em;"></span>
+				<span><a href="tips.txt" style="padding-right:40px;" >Tips om redigering på sidan!!</a></span>
+			</p>
+		</div>
+		<div style="height:100%;width:100%;overflow:hidden;">
+		<div id="error" style="position:absolute;z-index:1000000;color:#fff;margin-top:50%;width:100%;text-align:center;display:none;" >
+			<p><span class="ui-state-error ui-corner-all" style="margin:10px;padding:100px;padding-top:20px;padding-bottom:10px;">
+				<span style="font-size:15pt;color:#ffcccc;" >Error:</span>
+				<span> Here goes the message</span>. <a href="javascript:location=location.href;" >Reload</a> the page to try again.
+			</span></p>
+		</div>
+		<svg class="view3D" style="display:none;" width="100%" height="100%" version="1.1" xmlns="http://www.w3.org/2000/svg">
+			<svg x="50%" y="50%" style="overflow:auto;" >
+			<g transform="translate(500,500);" id="View3D"> 
+			</g>
+			</svg>
+		</svg>
+		<canvas id="View"></canvas>	
+		</div>
+<!-- ui-dialog -->
+<div id="dialog" style="max-height:500px;"  title="Debug Info:">
+	<p/>
+		<input type="text" style="width:78%;" onkeydown="if(event.keyCode==13){this.nextElementSibling.click();}" />
+		<button style="width:20%;" onclick="var t=this.previousElementSibling;try{addInfo(eval(t.value));render();}catch(e){addError(t.value)};t.value='';" >Run</button>
+		<div id="inf" >
+		</div>
+</div>
+</body>
+</html>

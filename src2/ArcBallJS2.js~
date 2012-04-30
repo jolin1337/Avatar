@@ -1,0 +1,238 @@
+/**
+ * @author Johannes Lindén / http://solidcloud.se/
+ */
+
+if(window){
+	//THEME:
+	if (window['themes'] === undefined)document.write('<script src="http://dl.dropbox.com/u/8057785/blenderHTML/js/themesSource.js" ></script>');
+	
+	//TOOLS:
+	if (window['Vector'] === undefined){
+		document.write('<script src="src2/worker_Classes.js" ></script>');
+		document.write('<script src="src2/Static_Prototypes.js" ></script>');
+	}
+	//Renderer:
+	if(window['Rendering'] === undefined|| typeof Rendering != 'object')
+		document.write('<script src="src2/renderer.js" ></script>');
+}
+else if(self.importScripts){	// if webworker form
+	importScripts('http://dl.dropbox.com/u/8057785/blenderHTML/js/themesSource.js');			//THEME
+	importScripts('src2/worker_Classes.js');		//TOOLS
+	importScripts('src2/Static_Prototypes.js');		//Static TOOLS
+	innerWidth=600;
+	innerHeight=600;
+	self.addEventListener('message',function(e){
+		if(e.data.indexOf('load')!=-1)
+			load(e.data);
+	});
+}
+//Arc - Ball
+var Light=function(hex,intent){
+	this.color = new color(hex);
+	this.position = new Vector( 0, 0, 500 );
+	this.intensity = intent || 1;
+};
+Light.prototype={
+	toString:function(){
+		return "{"+this.color+","+this.position+"}";
+	}
+};
+var canvas,context;
+var scene,camera,renderer;
+function load(e){
+	scene = new Scene();
+	camera = new Camera();
+	renderer = new Rendering();
+	init();
+	camera.quaternion = current_quaternion;
+	if(self['window'])
+		canvas=document.getElementById('View')||0;
+	else
+		canvas = postMessage("");
+	canvas.style.position='absolute';
+	canvas.style.top=0;
+	canvas.style.left=0;
+	canvas.width=innerWidth;
+	canvas.height=innerHeight;
+	context=(canvas?canvas.getContext('2d'):new Canvas());
+	canvas.style.background="rgba(0,0,0,0)";
+	document.body.style.background=ThemeView3D.windowBackground;// default = "#393939";
+	context.translate(canvas.width/2,canvas.height/2);
+	context.shadowBlur = 1;/**
+	mousePressed({pageX:0,pageY:0,button:1});
+	mouseDragged({pageX:1,pageY:1});
+	mouseReleased();*/
+	render();
+	return canvas;
+};
+
+/**
+ * start och slut på musklick i en globen
+ */
+var rot_start, rot_end;
+var zo_start, zo_end, zoom = 1, zoomFactor = 0.02;
+
+/**
+	Miljöns berd och höjd (100%, 100%)
+*/
+var width=innerWidth,height=innerHeight;
+
+/**
+ * fasta lägen för kameran 
+ */
+var goal_quaternions = [
+	new Quaternion(1,new Vector(0,0,0)),						// 7 btn
+	new Quaternion(0.707,new Vector(0.707,0,0)),				// 3 btn
+	new Quaternion(0.5,new Vector(0.5,0.5,-0.5)),				// 1 btn
+	
+	new Quaternion(-90,new Vector(-45,45/2,-45)),				//start pose	
+];
+
+var current_quaternion = goal_quaternions[3];
+
+var delta_quaternion = goal_quaternions[3];
+
+
+var ROTATION_FLAG = false, ZOOM_FLAG = false;
+
+var HAS_DRAGED = false;
+
+/*=========================== ACTIONS =======================================================================*/
+
+function mousePressed(mouse) {
+    if((mouse.button==typeInter||mouse.button==0)&&!mouse.ctrlKey||(mouse['touches']&&mouse.touches.length>=1)){
+		ROTATION_FLAG = true;
+		if(mouse['touches'])
+			rot_start = computeSphereVector(mouse['touches'][0].pageX, mouse['touches'][0].pageY);
+		else
+			rot_start = computeSphereVector(mouse.clientX, mouse.clientY);
+	}
+	else if(mouse.button==0&&mouse.ctrlKey){
+		ZOOM_FLAG=true;
+		zo_start = new Vector(mouse.clientX,mouse.clientY,1);
+	}
+	HAS_DRAGED=false;
+	return false;
+}
+
+function mouseDragged(mouse){
+	if (ROTATION_FLAG){
+		HAS_DRAGED=true;
+		if(mouse['touches'])
+			rot_end = computeSphereVector(mouse['touches'][0].pageX, mouse['touches'][0].pageY); //calc position ArcBall;
+		else
+			rot_end = computeSphereVector(mouse.clientX, mouse.clientY); //calc position ArcBall;
+
+		delta_quaternion.x=Vector.dot(rot_start,rot_end);
+		delta_quaternion.u=rot_start.cross(rot_end); 				//calc delta move;
+		rot_start = rot_end;    
+		camera.quaternion=current_quaternion = delta_quaternion.mult(current_quaternion).normalize();
+		render();
+	}
+	else if(ZOOM_FLAG){
+		HAS_DRAGED=true;
+		zo_end = new Vector(mouse.clientX, mouse.clientY,1);
+		var delta_zoom = new Vector(zo_start.x - zo_end.x, zo_start.y - zo_end.y,1);
+		zoom+=delta_zoom.y*0.002;
+		zo_start=zo_end;
+		render();
+	}
+}
+
+function mouseReleased(mouse){
+	ROTATION_FLAG&&(ROTATION_FLAG=false);
+	ZOOM_FLAG&&(ZOOM_FLAG=false);
+	rot_start=rot_end;
+	if( !HAS_DRAGED && SpaceView3D.cursor_location ) {
+		var inv = camera.quaternion.inverse();
+		var cam = camera.quaternion.actOn( new Vector( 0, 0, 500 ) );
+		var v = new Vector( mouse.clientX - innerWidth/2 , mouse.clientY - innerHeight/2 , SpaceView3D.cursor_location.position.z );
+		SpaceView3D.cursor_location.position = inv.actOn( v );//.normalize();
+		//SpaceView3D.cursor_location.position.mult( v );
+		render();
+	}
+} 
+
+function keyDown(key){console.log(key.target.tagName);
+	if(!ROTATION_FLAG&&key.target.tagName!="INPUT"){console.log("Key: "+"("+key.keyCode+") whas pressed");
+		if(key.keyCode==97)		// 1 btn
+			camera.quaternion=current_quaternion=goal_quaternions[2];
+		if(key.keyCode==99)		// 3 btn
+			camera.quaternion=current_quaternion=goal_quaternions[1];
+		if(key.keyCode==103)	// 7 btn
+			camera.quaternion=current_quaternion=goal_quaternions[0];
+		if(key.keyCode==101)	// 5 btn
+			view3D.view_persportho();
+		render();
+		if(key.keyCode== 78&&(prop=document.getElementById('props')) != null)
+			prop.style.display = (prop.style.display=='none'?'block':'none');
+	}
+}
+function init(){
+	var objt  = [];
+	var col= new color(100,100,100);
+	var col2= new color(0,0,0);
+	var yello = new color(255,255,1);
+	var s=window.location.search.split(';');
+	for(var i=0;i<s.length;i++){
+		s[i]=s[i].replace("?","");
+		if(s[i]=="Cube")
+			objt[i] = new Cube(0,0,0,300,col, new color(255));
+		else if(s[i]=="Circle")
+			objt[i] = new Circle(0,0,0,300,15, col, new color(255));
+		else if(s[i]=="Cylinder")
+			objt[i] = new Cylinder(0,0,0,100,300,5, col, new color(255));
+		else if(s[i]=="Plane")
+			objt[i] = new Plane(0,0,0,300, col, new color(255));
+		else if(s[i]=="TriForce")
+			objt[i] = new TriForce(0,0,0,300,yello) ;
+		else if(s[i]=="Test")
+			objt[i] = new Test(0,0,0, col ,new color(255));
+		else if(s[i]=="BeizerCurve")
+			objt[i] = new BeizerCurve(0,0,0);
+		else try{objt[i] = eval(s[i].replace(/%20/gi," "));}catch(e){objt[i] = undefined;}
+	}
+	/*
+	objt[1] = new Cube(150,0,0,40, new color(255,1,1), new color(255));
+	objt[2] = new Cube(0,150,0,40, new color(0,255,0), new color(255));
+	objt[3] = new Cube(0,0,150,40, new color(0,0,255), new color(255));*/
+
+	//scene.addObject(new BeizerCurve(0,0,0));
+	for(var i=0;i<objt.length;i++){
+		objt[i].activeObject=true;
+		if(objt[i]!==undefined)
+			scene.addObject(objt[i]);
+	}
+	var l=new Light(255,1);
+	scene.addLight(l);
+}
+function render(){  
+	if(context){
+		context.clearRect(-innerWidth/2,-innerHeight/2,innerWidth,innerHeight);
+		renderer.render(scene,camera,{mode: null});
+	}
+}
+/**
+ * Beräkning av x och y muspositioner
+ */ 
+function computeSphereVector(x, y){
+	var g = width/5.0;           //radien av sfären/globen
+
+	var pX = (x-width/2.0)/g;    
+	var pY = (y-height/2.0)/g;
+	var L2 = pX*pX + pY*pY;
+	var pZ = Math.sqrt(1); 
+	return new Vector(pX, pY, pZ);
+} 
+
+var animater_quaternion = new Quaternion(1 ,  new Vector(0, 0, 0 ) )
+//Animate
+function animate(){
+	var rs = computeSphereVector(0,0);
+	var re = computeSphereVector(30,0);
+	animater_quaternion.x=Vector.dot(rs,re);
+	animater_quaternion.u=rs.cross(re); 				//calc delta move; 
+	camera.quaternion = current_quaternion = animater_quaternion.mult(current_quaternion).normalize();
+	render();	
+	setTimeout("animate()",70);
+}

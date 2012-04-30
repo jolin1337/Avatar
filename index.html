@@ -1,0 +1,192 @@
+﻿<html>
+<head>
+<title>3D - View</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<script type="text/javascript" src="js/jquery.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="src2/worker_Classes.js" ></script>
+<script src="src2/Static_Prototypes.js" ></script>
+<script src="src2/themesSource.js" ></script>
+<script src="src2/main.js" ></script>
+<script type="text/javascript">
+/************ --    LOGO   -- ***********
+   __    ____              ____                                           
+ /'__`\ /\  _`\           /\  _`\                                         
+/\_\L\ \\ \ \/\ \         \ \,\L\_\     __   _ __   __  __     __   _ __  
+\/_/_\_<_\ \ \ \ \  _______\/_\__ \   /'__`\/\`'__\/\ \/\ \  /'__`\/\`'__\
+  /\ \L\ \\ \ \_\ \/\______\ /\ \L\ \/\  __/\ \ \/ \ \ \_/ |/\  __/\ \ \/ 
+  \ \____/ \ \____/\/______/ \ `\____\ \____\\ \_\  \ \___/ \ \____\\ \_\ 
+   \/___/   \/___/            \/_____/\/____/ \/_/   \/__/   \/____/ \/_/ 
+
+************ --    LOGO   -- ***********/
+
+	var can;
+	var socket = io.connect('http://192.168.1.66:1337');
+
+	$(function(){
+		can=$("#test")[0];
+		ct2=can.getContext("2d");
+		ct2.translate(innerWidth/2,innerHeight/2);
+		can.style.position='absolute';
+		can.style.top=0;
+		can.style.left=0;
+		can.width=innerWidth;
+		can.height=innerHeight;
+		can.style.zIndex="1";
+		can.style.background="rgba(255,255,255,0)";
+		
+		if (window.addEventListener) { //IE9 - Other
+			can.addEventListener ("mouseup", mouseReleased, true);
+			can.addEventListener ("mousedown", mousePressed, true);
+			can.addEventListener ("mousemove", mouseDragged, true);
+			can.addEventListener ("keydown", keyDown, false);
+			window.addEventListener ("keydown", keyDown, false);
+			document.body.oncontextmenu = function(event){
+				event.preventDefault();
+				event.returnValue=false;
+				event.stopPropagation();
+				return false;
+			};
+		}
+		socket.on('start', function (infoPlayer) {
+			console.log("Socket session: started Player " + infoPlayer.id);
+			load(infoPlayer);
+			socket.emit('cll', true);
+		});
+		socket.on('add', function (player){
+			console.log("Socket session: added new Player");
+			if(player.id != you){
+				var obj = new Cube(player.position.x,player.position.y,player.position.z,40, new color(255,255,0));
+				obj.id = player.id;
+				scene.addObject(obj);
+			}
+		});
+		socket.on('remove', function (id){
+			console.log("Socket session: removed Player " + id);
+			if(id != you){
+				scene.removeObjectFromId(id);
+			}
+		});
+
+		socket.on('position-change', function(id,pos){
+			for( var i=0;i<scene.objects.length;i++)
+				if(scene.objects[i].id === id){
+					(!scene.objects[i].positionTo) && (scene.objects[i].positionTo = new Vector);
+					scene.objects[i].positionTo.x = pos.x;
+					scene.objects[i].positionTo.y = pos.y;
+					scene.objects[i].positionTo.z = pos.z;
+
+					var obj = $(scene.objects[i].position);
+					obj.stop();
+					obj.animate({
+						"x": scene.objects[i].positionTo.x,
+						"y": scene.objects[i].positionTo.y,
+					}, "fast");
+				}
+		});
+		socket.on('user-message', function(id, msg){
+			console.log("Player " + id + " says:",msg);
+			for( var i=0;i<scene.objects.length;i++)
+				if(scene.objects[i].id == id){
+					var rm = document.getElementById('messages');
+					rm.style.display = "block";
+					rm.innerHTML = msg;
+					var pos = renderer.project(camera.quaternion.actOn(scene.objects[i].position),{x:0,y:0,z:500});
+					rm.style.left = (pos.x + innerWidth/2 ) + "px";
+					rm.style.top = (pos.y + innerHeight/2 - 40 ) + "px";
+					setTimeout(function(){rm.style.display = "none";},3000);
+				}
+		});
+		function sendMsg(e){
+			if((!e.keyCode || e.keyCode == 13)){
+				var o = document.getElementById('chatt').getElementsByTagName('input')[0];
+				if(o.value != "put your chatt text here..." || e.keyCode)
+					socket.emit('request-user-message',
+						you, 
+						o.value
+					);
+				o.value = "put your chatt text here...";
+				o.blur();
+				e.preventDefault();
+				return false;
+			}
+		}
+		document.getElementById('chatt').getElementsByTagName('button')[0].addEventListener('click', 
+			sendMsg,false);
+		document.getElementById('chatt').getElementsByTagName('input')[0].addEventListener('keydown', 
+			sendMsg,false);
+	});
+
+</script>
+<style type="text/css">
+	body{ font: 62.5% "Trebuchet MS", sans-serif; margin: 0px;overflow:hidden;}
+	#navigaor{
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		background-color: transparent;
+	}
+	#chatt .sender{
+		position: absolute;
+		bottom: 0;
+		left: 0;
+		width: 100%;
+		z-index: 10;
+		background-color: #222;
+		padding: 4px 0;
+		border-top: 1px solid #fff;
+	}
+		#chatt .sender input{
+			width: 89%;
+			margin: 1px 2px;
+			background-color: #eee;
+			border-radius: 5px;
+			border: 2px groove #222;
+			color: #333;
+		}
+		#chatt .sender button{
+			width: 9%;
+			padding: 0;
+			margin: 1px 2px;
+		}
+		#chatt .reseaver {
+			background-color: rgba(1,1,1,0.5);
+			color: #fff;
+			border-radius: 10px;
+			position: absolute;
+			padding: 10px;
+			display: none;
+		}
+</style>
+<script type="text/javascript" language="Javascript">
+function scrolltop(){scroll(0,0);}
+</script>
+</head>
+<body >
+		<div style="height:100%;width:100%;overflow:hidden;">
+			<div id="error" style="position:absolute;z-index:1000;color:#fff;bottom:10px;left:0px;width:auto;text-align:center;display:none;background:#444;" >
+				<a href="javascript:void(0);" onclick="this.parentNode.display='none';return false;" >(hide)</a>
+				<p>
+				<!-- ## this is an example how it may look like: ##
+				<p><span class="ui-state-error ui-corner-all" style="margin:10px;padding:100px;padding-top:20px;padding-bottom:10px;">
+					<span style="font-size:15pt;color:#ffcccc;" >Error:</span>
+					<span> Here goes the message</span>. <a href="javascript:location=location.href;" >Reload</a> the page to try again.
+				</span></p>
+				-->
+				</p>
+			</div>
+			<canvas id="test" onselectstart="return false;" ></canvas>	
+			<canvas id="View"></canvas>	
+			<canvas id="navigaor" width=50 height=50 ></canvas>	
+			<div id="chatt" >
+				<div class="reseaver" id="messages">
+				</div>
+				<div class="sender">
+					<input type="text" value="put your chatt text here..." onblur="this.value=(this.value==''?'put your chatt text here...':this.value);" onfocus="this.value='';" />
+					<button>Send</button>
+				</div
+			</div>
+		</div>
+</div>
+</body>
+</html>
